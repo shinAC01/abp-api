@@ -1,0 +1,116 @@
+﻿using Microsoft.EntityFrameworkCore;
+using ProductManagement.Categories;
+using ProductManagement.Products;
+using Volo.Abp.AuditLogging.EntityFrameworkCore;
+using Volo.Abp.BackgroundJobs.EntityFrameworkCore;
+using Volo.Abp.Data;
+using Volo.Abp.DependencyInjection;
+using Volo.Abp.EntityFrameworkCore;
+using Volo.Abp.FeatureManagement.EntityFrameworkCore;
+using Volo.Abp.Identity;
+using Volo.Abp.Identity.EntityFrameworkCore;
+using Volo.Abp.OpenIddict.EntityFrameworkCore;
+using Volo.Abp.PermissionManagement.EntityFrameworkCore;
+using Volo.Abp.SettingManagement.EntityFrameworkCore;
+using Volo.Abp.TenantManagement;
+using Volo.Abp.TenantManagement.EntityFrameworkCore;
+
+namespace ProductManagement.EntityFrameworkCore;
+
+[ReplaceDbContext(typeof(IIdentityDbContext))]
+[ReplaceDbContext(typeof(ITenantManagementDbContext))]
+[ConnectionStringName("Default")]
+public class ProductManagementDbContext :
+    AbpDbContext<ProductManagementDbContext>,
+    IIdentityDbContext,
+    ITenantManagementDbContext
+{
+    /* Add DbSet properties for your Aggregate Roots / Entities here. */
+    public DbSet<Product> Products { get; set; }
+    public DbSet<Category> Categories { get; set; }
+
+    #region Entities from the modules
+
+    /* Notice: We only implemented IIdentityDbContext and ITenantManagementDbContext
+     * and replaced them for this DbContext. This allows you to perform JOIN
+     * queries for the entities of these modules over the repositories easily. You
+     * typically don't need that for other modules. But, if you need, you can
+     * implement the DbContext interface of the needed module and use ReplaceDbContext
+     * attribute just like IIdentityDbContext and ITenantManagementDbContext.
+     *
+     * More info: Replacing a DbContext of a module ensures that the related module
+     * uses this DbContext on runtime. Otherwise, it will use its own DbContext class.
+     */
+
+    //Identity
+    public DbSet<IdentityUser> Users { get; set; }
+    public DbSet<IdentityRole> Roles { get; set; }
+    public DbSet<IdentityClaimType> ClaimTypes { get; set; }
+    public DbSet<OrganizationUnit> OrganizationUnits { get; set; }
+    public DbSet<IdentitySecurityLog> SecurityLogs { get; set; }
+    public DbSet<IdentityLinkUser> LinkUsers { get; set; }
+    public DbSet<IdentityUserDelegation> UserDelegations { get; set; }
+
+    // Tenant Management
+    public DbSet<Tenant> Tenants { get; set; }
+    public DbSet<TenantConnectionString> TenantConnectionStrings { get; set; }
+
+    #endregion
+
+    public ProductManagementDbContext(DbContextOptions<ProductManagementDbContext> options)
+        : base(options)
+    {
+
+    }
+
+    protected override void OnModelCreating(ModelBuilder builder)
+    {
+        base.OnModelCreating(builder);
+
+        /* Include modules to your migration db context */
+
+        builder.ConfigurePermissionManagement();
+        builder.ConfigureSettingManagement();
+        builder.ConfigureBackgroundJobs();
+        builder.ConfigureAuditLogging();
+        builder.ConfigureIdentity();
+        builder.ConfigureOpenIddict();
+        builder.ConfigureFeatureManagement();
+        builder.ConfigureTenantManagement();
+
+        /* Configure your own tables/entities inside here */
+
+        /*
+        La siguiente configuración tiene que ver con la forma de mappear los datos:
+        Es decir, la forma en la que la migración va a crear la tabla, los metodos que llaman son bastante explícitos
+        Realmente este tipo de configuraciones se pueden hacer por Data Annotations: Los clasicos
+        [Required], [StringLength] y todo eso en las entidades o se puede hacer de esta via:
+
+        Fluent API: Manipular los requerimientos via DbContext 
+        */
+
+        /* Configure your own tables/entities inside here */
+        builder.Entity<Category>(b =>
+        {
+            b.ToTable("Categories");
+            b.Property(x => x.Name)
+            .HasMaxLength(CategoryConst.MaxNameLength)
+            .IsRequired();
+            b.HasIndex(x => x.Name);
+        });
+
+        builder.Entity<Product>(b =>
+        {
+            b.ToTable("Products");
+            b.Property(x => x.Name)
+                .HasMaxLength(ProductConst.MaxNameLength)
+                .IsRequired();
+            b.HasOne(x => x.Category)
+                .WithMany()
+                .HasForeignKey(x => x.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired();
+            b.HasIndex(x => x.Name).IsUnique();
+        });
+    }
+}
