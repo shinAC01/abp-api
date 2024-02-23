@@ -29,6 +29,10 @@ using Volo.Abp.Security.Claims;
 using Volo.Abp.Swashbuckle;
 using Volo.Abp.UI.Navigation.Urls;
 using Volo.Abp.VirtualFileSystem;
+using Volo.Abp.OpenIddict;
+using Microsoft.AspNetCore.Hosting;
+using System.Security.Cryptography.X509Certificates;
+
 
 namespace ProductManagement;
 
@@ -56,6 +60,62 @@ public class ProductManagementHttpApiHostModule : AbpModule
                 options.UseAspNetCore();
             });
         });
+
+        var hostingEnvironment = context.Services.GetHostingEnvironment();
+
+        if (!hostingEnvironment.IsDevelopment())
+        {
+            PreConfigure<AbpOpenIddictAspNetCoreOptions>(options =>
+            {
+                options.AddDevelopmentEncryptionAndSigningCertificate = false;
+            });
+
+            string encryptionThumbprint = "****";
+            string signingThumbprint = "";
+
+            var encryptionCertificate = GetX509Certificate2(encryptionThumbprint);
+            var signingCertificate = GetX509Certificate2(signingThumbprint);
+
+
+            PreConfigure<OpenIddictServerBuilder>(builder =>
+            {
+                builder.AddEncryptionCertificate(encryptionCertificate);
+                builder.AddSigningCertificate(signingCertificate);
+                // In production, it is recommended to use two RSA certificates, one for encryption, one for signing.
+                //builder.AddEncryptionCertificate(GetSigningCertificate(hostingEnvironment, context.Services.GetConfiguration()));
+                //builder.AddSigningCertificate(GetSigningCertificate(hostingEnvironment, context.Services.GetConfiguration()));
+            });
+
+            
+            
+            
+        }
+        X509Certificate2 GetX509Certificate2(string thumbprint) 
+        { 
+            bool validOnly = false; 
+            using var store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
+            store.Open(OpenFlags.ReadOnly); 
+            var collection = store.Certificates.Find(X509FindType.FindByThumbprint, thumbprint, validOnly); 
+            var certificate = collection.OfType<X509Certificate2>().FirstOrDefault(); 
+            store.Close(); 
+            return certificate ?? throw new Exception($"Cannot find certificate with thumbprint {thumbprint}"); 
+        }
+
+        /*
+        X509Certificate2 GetSigningCertificate(IWebHostEnvironment hostingEnv, IConfiguration configuration)
+        {
+            var fileName = configuration["MyAppCertificate:X590:FileName"]; //*.pfx 
+            var passPhrase = configuration["MyAppCertificate:X590:PassPhrase"]; // pass phrase (XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX)
+            var file = Path.Combine(hostingEnv.ContentRootPath, fileName);
+
+            if (!File.Exists(file))
+            {
+                throw new FileNotFoundException($"Signing Certificate couldn't found: {file}");
+            }
+
+            return new X509Certificate2(file, passPhrase);
+        }
+        */
     }
 
     public override void ConfigureServices(ServiceConfigurationContext context)
