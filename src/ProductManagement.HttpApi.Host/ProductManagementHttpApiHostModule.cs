@@ -61,14 +61,17 @@ public class ProductManagementHttpApiHostModule : AbpModule
             });
         });
 
-        var hostingEnvironment = context.Services.GetHostingEnvironment();
+        PreConfigure<AbpOpenIddictAspNetCoreOptions>(options =>
+        {
+            options.AddDevelopmentEncryptionAndSigningCertificate = false;
+        });
 
+        /*
+        var hostingEnvironment = context.Services.GetHostingEnvironment();
+        
         if (!hostingEnvironment.IsDevelopment())
         {
-            PreConfigure<AbpOpenIddictAspNetCoreOptions>(options =>
-            {
-                options.AddDevelopmentEncryptionAndSigningCertificate = false;
-            });
+            
 
             string encryptionThumbprint = "****";
             string signingThumbprint = "";
